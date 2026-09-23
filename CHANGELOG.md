@@ -2,6 +2,8 @@
 
 ## 2.4.0 — Unreleased
 
+- Record the revision of the nested repository that owns a task's scope in gate proofs. A workspace whose root has no commits (for example, several repositories checked out side by side) previously recorded `revision.commit: null`, so evidence could not be tied to the commit it verified. Proofs now add `revision.repo` when the scope resolves to one nested repository; other layouts are unchanged.
+
 Review follow-ups (#13-#20):
 
 - Surface ambiguity everywhere a reference is resolved, not only in the symbol tools, and record it per reference so a two-endpoint query like `path` cannot lose one end. `get_impact` and `trace_path` return `resolved`/`also_matched`, and `genesis query --json` carries it too; a note on stderr was invisible to the callers most likely to act on the wrong symbol.
