@@ -277,6 +277,27 @@ function gitInfo(repo) {
   }
 }
 
+function gitToplevel(dir) {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// When every scope path lives in one nested repository, record that repository's revision.
+function scopeRevision(repo, scope = []) {
+  const root = gitToplevel(repo);
+  const tops = new Set(scope.map((path) => {
+    let dir = resolve(repo, path);
+    while (!existsSync(dir) && dir !== repo) dir = dirname(dir);
+    return gitToplevel(existsSync(dir) && !statSync(dir).isDirectory() ? dirname(dir) : dir);
+  }));
+  const [top] = tops;
+  if (tops.size !== 1 || !top || top === root) return gitInfo(repo);
+  return { ...gitInfo(top), repo: relative(root || repo, top).split(sep).join('/') };
+}
+
 function revision(repo) {
   return { ...gitInfo(repo), source_hash: contentHash(repo) };
 }
@@ -1140,7 +1161,7 @@ async function commandGate(parsed) {
       currentGate.evidence = saveProof(repo, { task: id, gate: gateId, kind: gate.kind || 'command', attempt: attempt.id,
         command: gate.command, started_at: attempt.started_at, observed_at: now(), exit_code: result.status,
         signal: result.signal, stdout: result.stdout, stderr: result.stderr, failure, receipt,
-        revision: gitInfo(repo), source_hash: hash, before_hash: attempt.before_hash,
+        revision: scopeRevision(repo, currentTask.scope), source_hash: hash, before_hash: attempt.before_hash,
         config_hash: attempt.config_hash, environment: attempt.environment });
       saveState(repo, latest, 'gate.ran', { task: id, gate: gateId, attempt: attempt.id, failure });
       return failure;
