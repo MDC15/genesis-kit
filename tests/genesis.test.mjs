@@ -82,6 +82,26 @@ test('gate proof fails closed, records provenance, and becomes stale after sourc
   assert.equal(state(repo).tasks[0].state, 'done');
 });
 
+test('gate proof records the commit of a nested repository that owns the task scope', () => {
+  const workspace = mkdtempSync(join(tmpdir(), 'genesis-workspace-'));
+  execFileSync('git', ['init', '-q'], { cwd: workspace });
+  const app = join(workspace, 'app');
+  mkdirSync(app);
+  execFileSync('git', ['init', '-q'], { cwd: app });
+  execFileSync('git', ['config', 'user.email', 'genesis@example.test'], { cwd: app });
+  execFileSync('git', ['config', 'user.name', 'Genesis Test'], { cwd: app });
+  writeFileSync(join(app, 'index.js'), 'export {};\n');
+  execFileSync('git', ['add', '.'], { cwd: app });
+  execFileSync('git', ['commit', '-qm', 'app'], { cwd: app });
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: app, encoding: 'utf8' }).trim();
+  run(['init', workspace]);
+  run(['task', 'add', workspace, '--id', 'T-1', '--outcome', 'Ship the app', '--scope', 'app', '--gate', 'tests:node -e "process.exit(0)"']);
+  run(['gate', workspace, 'T-1']);
+  const proof = JSON.parse(readFileSync(join(workspace, state(workspace).tasks[0].gates[0].evidence.path), 'utf8'));
+  assert.equal(proof.revision.commit, head);
+  assert.equal(proof.revision.repo, 'app');
+});
+
 test('medium-risk tasks require independent human-reviewed evidence', () => {
   const repo = tempRepo();
   run(['init', repo]);
